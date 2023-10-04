@@ -66,9 +66,9 @@ class UKF(object):
 
         # sigma点生成
         sigmas[0] = self.x
-        for i in range(1, n, 1):
-            sigmas[i] = self.x + Psqrt[i]
-            sigmas[n + i] = self.x - Psqrt[i]
+        for i in range(n):
+            sigmas[i + 1] = self.x + Psqrt[i]
+            sigmas[n + i + 1] = self.x - Psqrt[i]
 
         return sigmas, self.Wm, self.Wc
 
