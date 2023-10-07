@@ -77,16 +77,19 @@ class UKF(object):
         预测
         """
         # 生成sigma点
-        sigmas, Wm, Wc = self.sigma_points()
+        sigmas_x, Wm, Wc = self.sigma_points()
         # sigma点预测
-        for i in range(len(sigmas)):
-            sigmas[i] = self.fx(sigmas[i], u, self.dt)
+        for i in range(len(sigmas_x)):
+            sigmas_x[i] = self.fx(sigmas_x[i], u, self.dt)
         # 状态量预测
-        for i in range(len(sigmas)):
-            self.x += sigmas[i] * Wm[i]
+        self.x = np.zeros(self.dim_x)
+        for i in range(len(sigmas_x)):
+            self.x += sigmas_x[i] * Wm[i]
+
+        self.P = self.Q
         # 协方差矩阵预测
-        for i in range(len(sigmas)):
-            self.P += (self.x - sigmas[i]).dot((self.x - sigmas[i]).T) * Wc[i]
+        for i in range(len(sigmas_x)):
+            self.P += (self.x - sigmas_x[i]).dot((self.x - sigmas_x[i]).T) * Wc[i]
         return self.x, self.P
 
     def update(self, z):
@@ -100,8 +103,11 @@ class UKF(object):
         for i in range(len(sigmas)):
             sigmas_z[i] = self.hx(sigmas[i])
         # 测量量预测
+        self.z = np.zeros(self.dim_z)
         for i in range(len(sigmas)):
             self.z += sigmas_z[i] * Wm[i]
+
+        self.P = self.R
         # 测量量协方差矩阵预测
         for i in range(len(sigmas)):
             self.P += (sigmas_z[i] - self.z).dot((sigmas_z[i] - self.z).T) * Wc[i]

@@ -5,9 +5,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-
-from filterpy.kalman import UnscentedKalmanFilter as UKF
-from filterpy.kalman import MerweScaledSigmaPoints as MSSP
+import ukf_func as ukf
 
 # import ukf_func as ukf
 
@@ -36,36 +34,8 @@ measure_vx = vx + gas_nosie_vx
 measure_vy = vy + gas_nosie_vy
 
 
-# # 状态转移方程
-# def fx(x, u, dt):
-#     # 状态转移矩阵
-#     A = np.array(
-#         [
-#             [1, 0, dt, 0, 0, 0],
-#             [0, 1, 0, dt, 0, 0],
-#             [0, 0, 1, 0, 0, 0],
-#             [0, 0, 0, 1, 0, 0],
-#             [0, 0, 0, 0, 0, 0],
-#             [0, 0, 0, 0, 0, 0],
-#         ]
-#     )
-
-#     # 控制矩阵
-#     B = np.array(
-#         [
-#             [0.5 * dt * dt, 0],
-#             [0, 0.5 * dt * dt],
-#             [dt, 0],
-#             [0, dt],
-#             [1, 0],
-#             [0, 1],
-#         ]
-#     )
-#     return np.dot(A, x) + np.dot(B, u)
-
-
 # 状态转移方程
-def fx(x, dt):
+def fx(x, u, dt):
     # 状态转移矩阵
     A = np.array(
         [
@@ -73,12 +43,23 @@ def fx(x, dt):
             [0, 1, 0, dt, 0, 0],
             [0, 0, 1, 0, 0, 0],
             [0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 1, 0],
-            [0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
         ]
     )
 
-    return np.dot(A, x)
+    # 控制矩阵
+    B = np.array(
+        [
+            [0.5 * dt * dt, 0],
+            [0, 0.5 * dt * dt],
+            [dt, 0],
+            [0, dt],
+            [1, 0],
+            [0, 1],
+        ]
+    )
+    return np.dot(A, x) + np.dot(B, u)
 
 
 # 测量方程
@@ -97,39 +78,29 @@ def hx(x):
     return np.dot(H, x)
 
 
-ukf = UKF(
-    dim_x=6,
-    dim_z=6,
-    dt=dt,
-    hx=hx,
-    fx=fx,
-    points=MSSP(6, alpha=0.01, beta=2, kappa=0),
-)
-ukf.x = np.array(
-    [x[0], y[0], measure_vx[0], measure_vy[0], measure_ax[0], measure_ay[0]]
-)
-ukf.P = np.eye(6)
-ukf.R = np.eye(6)
-ukf.Q = np.eye(6)
+ukf_filter = ukf.UKF(dim_x=6, dim_z=6, dt=dt, hx=hx, fx=fx, alpha=0.1, beta=2, kappa=0)
 
-ukf.update(np.array([0, 0, measure_vx[0], measure_vy[0], measure_ax[0], measure_ay[0]]))
+ukf_filter.x = np.array([x[0], y[0], vx[0], vy[0], ax[0], ay[0]])
+ukf_filter.P = np.eye(6)
+ukf_filter.R = np.eye(6)
+ukf_filter.Q = np.eye(6)
+
 
 ukf_position = np.zeros((2, len(x) - 1))
 ukf_velocity = np.zeros((2, len(x) - 1))
 ukf_acceleration = np.zeros((2, len(x) - 1))
 
-for i in range(0, len(x) - 1):
-    ukf.predict()
-    ukf.update(
+for i in range(len(x) - 1):
+    ukf_filter.predict(u=np.array([ax[i], ay[i]]))
+    ukf_filter.update(
         np.array([0, 0, measure_vx[i], measure_vy[i], measure_ax[i], measure_ay[i]])
     )
-    ukf_position[0][i] = ukf.x[0]
-    ukf_position[1][i] = ukf.x[1]
-    ukf_velocity[0][i] = ukf.x[2]
-    ukf_velocity[1][i] = ukf.x[3]
-    ukf_acceleration[0][i] = ukf.x[4]
-    ukf_acceleration[1][i] = ukf.x[5]
-
+    ukf_position[0][i] = ukf_filter.x[0]
+    ukf_position[1][i] = ukf_filter.x[1]
+    ukf_velocity[0][i] = ukf_filter.x[2]
+    ukf_velocity[1][i] = ukf_filter.x[3]
+    ukf_acceleration[0][i] = ukf_filter.x[4]
+    ukf_acceleration[1][i] = ukf_filter.x[5]
 
 fig = plt.figure(figsize=(16, 10))
 
