@@ -7,7 +7,7 @@ import numpy as np
 
 
 class UKF(object):
-    def __init__(self, dim_x, dim_z, dt, hx, fx, alpha=1e-1, beta=2, kappa=0):
+    def __init__(self, dim_x, dim_z, dt, hx, fx, alpha, beta, kappa):
         """
         dim_x: 状态量维度
         dim_z: 测量量维度
