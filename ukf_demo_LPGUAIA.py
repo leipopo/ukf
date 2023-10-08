@@ -8,11 +8,10 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider
 import ukf_func as ukf
-
-# import ukf_func as ukf
+import kf_func as kf
 
 # 采样周期
-dt = 0.01
+dt = 0.1
 time = np.arange(0, 10, dt)
 time_1 = np.arange(0, 10 - dt, dt)
 
@@ -239,15 +238,64 @@ def animate(i):
     ukf_filter.x = np.array([x[0], y[0], vx[0], vy[0], ax[0], ay[0]])
     ukf_filter.P = np.eye(6)
     ukf_filter.R = np.eye(6)
-    # ukf_filter.R[2][2] = sli_v_noise
-    # ukf_filter.R[3][3] = sli_v_noise
-    # ukf_filter.R[4][4] = sli_acc_noise
-    # ukf_filter.R[5][5] = sli_acc_noise
+    ukf_filter.R[2][2] = sli_v_noise
+    ukf_filter.R[3][3] = sli_v_noise
+    ukf_filter.R[4][4] = sli_acc_noise
+    ukf_filter.R[5][5] = sli_acc_noise
     ukf_filter.Q = np.eye(6)
 
     ukf_position = np.zeros((2, len(x) - 1))
     ukf_velocity = np.zeros((2, len(x) - 1))
     ukf_acceleration = np.zeros((2, len(x) - 1))
+
+    A = np.array(
+        [
+            [1, 0, dt, 0, 0, 0],
+            [0, 1, 0, dt, 0, 0],
+            [0, 0, 1, 0, 0, 0],
+            [0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+        ]
+    )
+
+    # 控制矩阵
+    B = np.array(
+        [
+            [0.5 * dt * dt, 0],
+            [0, 0.5 * dt * dt],
+            [dt, 0],
+            [0, dt],
+            [1, 0],
+            [0, 1],
+        ]
+    )
+
+    # 测量矩阵
+    H = np.array(
+        [
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0],
+            [0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 1, 0],
+            [0, 0, 0, 0, 0, 1],
+        ]
+    )
+
+    kf_filter = kf.KF(dim_x=6, dim_z=6, dt=dt, A=A, B=B, H=H)
+    kf_filter.x = np.array([x[0], y[0], vx[0], vy[0], ax[0], ay[0]])
+    kf_filter.P = np.eye(6)
+    kf_filter.R = np.eye(6)
+    kf_filter.R[2][2] = sli_v_noise
+    kf_filter.R[3][3] = sli_v_noise
+    kf_filter.R[4][4] = sli_acc_noise
+    kf_filter.R[5][5] = sli_acc_noise
+    kf_filter.Q = np.eye(6)
+
+    kf_position = np.zeros((2, len(x) - 1))
+    kf_velocity = np.zeros((2, len(x) - 1))
+    kf_acceleration = np.zeros((2, len(x) - 1))
 
     for i in range(len(x) - 1):
         ukf_filter.predict(u=np.array([ax[i], ay[i]]))
@@ -261,31 +309,48 @@ def animate(i):
         ukf_acceleration[0][i] = ukf_filter.x[4]
         ukf_acceleration[1][i] = ukf_filter.x[5]
 
+        kf_filter.predict(u=np.array([ax[i], ay[i]]))
+        kf_filter.update(
+            np.array([0, 0, measure_vx[i], measure_vy[i], measure_ax[i], measure_ay[i]])
+        )
+        kf_position[0][i] = kf_filter.x[0]
+        kf_position[1][i] = kf_filter.x[1]
+        kf_velocity[0][i] = kf_filter.x[2]
+        kf_velocity[1][i] = kf_filter.x[3]
+        kf_acceleration[0][i] = kf_filter.x[4]
+        kf_acceleration[1][i] = kf_filter.x[5]
+
     ax_position_x.plot(time, x, label="real", color="red")
     ax_position_x.plot(time_1, ukf_position[0], label="ukf", color="blue")
+    ax_position_x.plot(time_1, kf_position[0], label="kf", color="black")
     ax_position_x.legend()
 
     ax_position_y.plot(time, y, label="real", color="red")
     ax_position_y.plot(time_1, ukf_position[1], label="ukf", color="blue")
+    ax_position_y.plot(time_1, kf_position[1], label="kf", color="black")
     ax_position_y.legend()
 
     ax_velocity_x.plot(time, vx, label="real", color="red")
     ax_velocity_x.plot(time_1, ukf_velocity[0], label="ukf", color="blue")
+    ax_velocity_x.plot(time_1, kf_velocity[0], label="kf", color="black")
     ax_velocity_x.plot(time, measure_vx, label="measure", color="green")
     ax_velocity_x.legend()
 
     ax_velocity_y.plot(time, vy, label="real", color="red")
     ax_velocity_y.plot(time_1, ukf_velocity[1], label="ukf", color="blue")
+    ax_velocity_y.plot(time_1, kf_velocity[1], label="kf", color="black")
     ax_velocity_y.plot(time, measure_vy, label="measure", color="green")
     ax_velocity_y.legend()
 
     ax_acceleration_x.plot(time, ax, label="real", color="red")
     ax_acceleration_x.plot(time_1, ukf_acceleration[0], label="ukf", color="blue")
+    ax_acceleration_x.plot(time_1, kf_acceleration[0], label="kf", color="black")
     ax_acceleration_x.plot(time, measure_ax, label="measure", color="green")
     ax_acceleration_x.legend()
 
     ax_acceleration_y.plot(time, ay, label="real", color="red")
     ax_acceleration_y.plot(time_1, ukf_acceleration[1], label="ukf", color="blue")
+    ax_acceleration_y.plot(time_1, kf_acceleration[1], label="kf", color="black")
     ax_acceleration_y.plot(time, measure_ay, label="measure", color="green")
     ax_acceleration_y.legend()
 
