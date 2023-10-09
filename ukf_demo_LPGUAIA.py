@@ -10,6 +10,7 @@ from matplotlib.widgets import Slider
 import ukf_func as ukf
 import kf_func as kf
 
+
 # 采样周期
 dt = 0.1
 time = np.arange(0, 10, dt)
@@ -32,48 +33,50 @@ gas_noise_ay = np.random.normal(0, 1, len(ay))
 gas_nosie_vx = np.random.normal(0, 1, len(vx))
 gas_nosie_vy = np.random.normal(0, 1, len(vy))
 
+# 状态转移矩阵
+A = np.array(
+    [
+        [1, 0, dt, 0, 0, 0],
+        [0, 1, 0, dt, 0, 0],
+        [0, 0, 1, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+    ]
+)
+
+# 控制矩阵
+B = np.array(
+    [
+        [0.5 * dt * dt, 0],
+        [0, 0.5 * dt * dt],
+        [dt, 0],
+        [0, dt],
+        [1, 0],
+        [0, 1],
+    ]
+)
+
+# 测量矩阵
+H = np.array(
+    [
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 0, 1],
+    ]
+)
+
 
 # 状态转移方程
 def fx(x, u, dt):
-    # 状态转移矩阵
-    A = np.array(
-        [
-            [1, 0, dt, 0, 0, 0],
-            [0, 1, 0, dt, 0, 0],
-            [0, 0, 1, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0],
-        ]
-    )
-
-    # 控制矩阵
-    B = np.array(
-        [
-            [0.5 * dt * dt, 0],
-            [0, 0.5 * dt * dt],
-            [dt, 0],
-            [0, dt],
-            [1, 0],
-            [0, 1],
-        ]
-    )
     return np.dot(A, x) + np.dot(B, u)
 
 
 # 测量方程
 def hx(x):
-    H = np.array(
-        [
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 1, 0],
-            [0, 0, 0, 0, 0, 1],
-        ]
-    )
-
     return np.dot(H, x)
 
 
@@ -222,6 +225,7 @@ def animate(i):
     measure_vx = vx + gas_nosie_vx * sli_v_noise
     measure_vy = vy + gas_nosie_vy * sli_v_noise
 
+    # 初始化ukf
     ukf_filter = ukf.UKF(
         dim_x=6,
         dim_z=6,
@@ -232,76 +236,50 @@ def animate(i):
         beta=sli_beta,
         kappa=0,
     )
-    ukf_filter.alpha = sli_alpha
-    ukf_filter.beta = sli_beta
-
+    # 初始化状态量
     ukf_filter.x = np.array([x[0], y[0], vx[0], vy[0], ax[0], ay[0]])
+    # 初始化状态协方差矩阵
     ukf_filter.P = np.eye(6)
+    # 初始化测量噪声协方差矩阵
     ukf_filter.R = np.eye(6)
     ukf_filter.R[2][2] = sli_v_noise
     ukf_filter.R[3][3] = sli_v_noise
     ukf_filter.R[4][4] = sli_acc_noise
     ukf_filter.R[5][5] = sli_acc_noise
+    # 初始化状态噪声协方差矩阵
     ukf_filter.Q = np.eye(6)
-
+    # 初始化ukf结果缓冲区
     ukf_position = np.zeros((2, len(x) - 1))
     ukf_velocity = np.zeros((2, len(x) - 1))
     ukf_acceleration = np.zeros((2, len(x) - 1))
 
-    A = np.array(
-        [
-            [1, 0, dt, 0, 0, 0],
-            [0, 1, 0, dt, 0, 0],
-            [0, 0, 1, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0],
-        ]
-    )
-
-    # 控制矩阵
-    B = np.array(
-        [
-            [0.5 * dt * dt, 0],
-            [0, 0.5 * dt * dt],
-            [dt, 0],
-            [0, dt],
-            [1, 0],
-            [0, 1],
-        ]
-    )
-
-    # 测量矩阵
-    H = np.array(
-        [
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 1, 0],
-            [0, 0, 0, 0, 0, 1],
-        ]
-    )
-
+    # 初始化kf
     kf_filter = kf.KF(dim_x=6, dim_z=6, dt=dt, A=A, B=B, H=H)
+    # 初始化状态量
     kf_filter.x = np.array([x[0], y[0], vx[0], vy[0], ax[0], ay[0]])
+    # 初始化状态协方差矩阵
     kf_filter.P = np.eye(6)
+    # 初始化测量噪声协方差矩阵
     kf_filter.R = np.eye(6)
     kf_filter.R[2][2] = sli_v_noise
     kf_filter.R[3][3] = sli_v_noise
     kf_filter.R[4][4] = sli_acc_noise
     kf_filter.R[5][5] = sli_acc_noise
+    # 初始化状态噪声协方差矩阵
     kf_filter.Q = np.eye(6)
-
+    # 初始化kf结果缓冲区
     kf_position = np.zeros((2, len(x) - 1))
     kf_velocity = np.zeros((2, len(x) - 1))
     kf_acceleration = np.zeros((2, len(x) - 1))
 
+    # 执行滤波计算
     for i in range(len(x) - 1):
+        # ukf
         ukf_filter.predict(u=np.array([ax[i], ay[i]]))
         ukf_filter.update(
             np.array([0, 0, measure_vx[i], measure_vy[i], measure_ax[i], measure_ay[i]])
         )
+        # ukf结果缓冲区
         ukf_position[0][i] = ukf_filter.x[0]
         ukf_position[1][i] = ukf_filter.x[1]
         ukf_velocity[0][i] = ukf_filter.x[2]
@@ -309,10 +287,12 @@ def animate(i):
         ukf_acceleration[0][i] = ukf_filter.x[4]
         ukf_acceleration[1][i] = ukf_filter.x[5]
 
+        # kf
         kf_filter.predict(u=np.array([ax[i], ay[i]]))
         kf_filter.update(
             np.array([0, 0, measure_vx[i], measure_vy[i], measure_ax[i], measure_ay[i]])
         )
+        # kf结果缓冲区
         kf_position[0][i] = kf_filter.x[0]
         kf_position[1][i] = kf_filter.x[1]
         kf_velocity[0][i] = kf_filter.x[2]
@@ -320,6 +300,7 @@ def animate(i):
         kf_acceleration[0][i] = kf_filter.x[4]
         kf_acceleration[1][i] = kf_filter.x[5]
 
+    # 绘制图像
     ax_position_x.plot(time, x, label="real", color="red")
     ax_position_x.plot(time_1, ukf_position[0], label="ukf", color="blue")
     ax_position_x.plot(time_1, kf_position[0], label="kf", color="black")
